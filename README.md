@@ -206,22 +206,33 @@ Both real-robot training scripts include:
 # 📁 Project Structure
 
 ```
-EFM/
-├── FlowPolicy/            # Core library & enhanced training
+.
+├── FlowPolicy/
+│   ├── train_real_robot_flowpolicy.py          # Single-view training script
+│   ├── train_real_robot_flowpolicy_dual_view.py # Dual-view training script
+│   ├── train.py                                # Base training workspace
+│   ├── eval_flowpolicy.py                      # Evaluation script
+│   ├── action_normalizer.py                    # DP-style action normalizer
+│   ├── action_normalizer_hybrid.py             # Hybrid action normalizer
+│   ├── action_normalizer_dp.py                 # Diffusion Policy action normalizer
+│   ├── train_exact_rectified_flow.py           # Exact rectified flow training
 │   └── flow_policy_3d/
-│       ├── consistencyfm/  # Conditional flow matching implementation
-│       ├── policy/         # FlowPolicy & enhanced variants
-│       ├── model/          # ConditionalUnet1D, PointNet encoders
-│       ├── dataset/        # Adroit, Metaworld, real-robot data loaders
-│       ├── env/            # Environment wrappers
-│       └── config/         # Hydra configs for all tasks
-├── EFM/                    # Enhanced additions
-│   ├── FlowPolicy/        # Enhanced training scripts & action normalizers
-│   ├── create_zarr_*.py    # Real-robot dataset creation
-│   └── visualize_zarr_pointclouds.py
-├── scripts/                # Training, evaluation, demo generation
-├── third_party/            # Dependencies (gym, Metaworld, mujoco-py, pytorch3d, VRL3)
-└── visualizer/             # Point cloud visualization utilities
+│       ├── consistencyfm/   # Conditional flow matching implementation
+│       ├── policy/          # FlowPolicy & enhanced variants
+│       ├── model/           # ConditionalUnet1D, PointNet encoders
+│       ├── dataset/         # Data loaders
+│       ├── env/             # Environment wrappers
+│       ├── env_runner/      # Rollout / evaluation runners
+│       ├── config/          # Hydra configs for all tasks
+│       ├── losses.py        # CFM loss functions
+│       └── losses_rectified_flow.py
+├── create_zarr_real_robot.py          # HDF5 → Zarr conversion
+├── create_zarr_real_robot_faster.py   # HDF5 → Zarr conversion (optimized)
+├── visualize_zarr_pointclouds.py      # Zarr point cloud visualization
+├── scripts/                           # Shell scripts (train, eval, demo gen)
+├── third_party/                       # Dependencies (gym, Metaworld, mujoco-py, pytorch3d, VRL3)
+├── install.md                         # Installation instructions
+└── README.md
 ```
 
 # 🏷️ License

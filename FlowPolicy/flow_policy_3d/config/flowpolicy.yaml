@@ -1,5 +1,6 @@
 defaults:
   - task: adroit_hammer
+  - _self_
 
 name: train_flowpolicy
 

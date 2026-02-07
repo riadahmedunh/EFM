@@ -201,6 +201,10 @@ class TrainFlowPolicyWorkspace:
                     loss = raw_loss / cfg.training.gradient_accumulate_every
                     loss.backward()
                     
+                    # CRITICAL: Apply gradient clipping to prevent NaN explosion
+                    if hasattr(self.model, 'apply_gradient_clipping'):
+                        self.model.apply_gradient_clipping()
+                    
                     t1_2 = time.time()
 
                     # step optimizer
@@ -504,6 +508,45 @@ class TrainFlowPolicyWorkspace:
         'flow_policy_3d', 'config'))
 )
 def main(cfg):
+    # Debug config loading
+    print(f"Config type: {type(cfg)}")
+    print(f"Config keys: {list(cfg.keys()) if hasattr(cfg, 'keys') else 'No keys method'}")
+    
+    # Fix struct config issue
+    OmegaConf.set_struct(cfg, False)
+    
+    # Check if config is empty and try to reload manually
+    if not cfg or len(cfg) == 0:
+        print("Config is empty, trying manual loading...")
+        from hydra import compose, initialize_config_dir
+        from hydra.core.global_hydra import GlobalHydra
+        import os
+        
+        # Clear global hydra state
+        GlobalHydra.instance().clear()
+        
+        # Use the correct relative path
+        config_path = os.path.join(os.getcwd(), 'flow_policy_3d', 'config')
+        print(f"Looking for config at: {config_path}")
+        print(f"Config path exists: {os.path.exists(config_path)}")
+        
+        if not os.path.exists(config_path):
+            print("Trying alternative path...")
+            config_path = os.path.abspath('flow_policy_3d/config')
+            print(f"Alternative path: {config_path}")
+            print(f"Alternative path exists: {os.path.exists(config_path)}")
+        
+        try:
+            with initialize_config_dir(config_dir=config_path, version_base=None):
+                cfg = compose(config_name='flowpolicy')
+                OmegaConf.set_struct(cfg, False)
+                print(f"Manual config loaded successfully with keys: {list(cfg.keys())}")
+        except Exception as e:
+            print(f"Manual config loading failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+    
     workspace = TrainFlowPolicyWorkspace(cfg)
     workspace.run()
 

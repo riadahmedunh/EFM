@@ -1,82 +1,273 @@
-# [AAAI 2025 Oral] FlowPolicy: Enabling Fast and Robust 3D Flow-based Policy via Consistency Flow Matching for Robot Manipulation
+# Enhanced Consistent Flow Matching Policy (EFM)
 
-<h4 align = "center">Qinglun Zhang<sup>1,2 *</sup>, Zhen Liu<sup>1,2 *</sup>, Haoqiang Fan<sup>2</sup>, Guanghui Liu<sup>1</sup>, Bing Zeng<sup>1</sup>, Shuaicheng Liu<sup>1,2</sup></h4>
+> **Enhanced Consistent Flow Matching Policy for Robust 3D Vision-Based Robot Manipulation**
 
-<h4 align = "center"> <sup>1</sup>University of Electronic Science and Technology of China</center></h4>
-<h4 align = "center"> <sup>2</sup>Megvii Technology</center></h4>
+This repository contains the implementation of **EFM** — an enhanced consistency flow matching framework for 3D vision-based robotic manipulation. EFM builds upon consistency flow matching principles and introduces several key improvements to the training and inference pipeline, resulting in more accurate and robust policy generation.
 
-This is the official implementation of our AAAI2025 paper: FlowPolicy: Enabling Fast and Robust 3D Flow-based Policy via Consistency Flow Matching for Robot Manipulation. [Paper](https://arxiv.org/abs/2412.04987)
+## ✨ Key Contributions
 
-## News
-* **2025.1.18** Our paper has been selected for **oral presentation** at AAAI 2025.
-* **2024.12.17** The final version of our paper is now available on [arXiv](https://arxiv.org/abs/2412.04987).
-* **2024.12.10** Our paper has been accepted by AAAI 2025.
+EFM introduces **three core enhancements** over standard consistency flow matching policies:
 
-## Abstract
+### 1. RK4 Integration for Inference
+We replace single-step Euler integration with **4th-order Runge-Kutta (RK4)** integration during inference, enabling more accurate trajectory estimation from noise to action space:
 
-Robots can acquire complex manipulation skills by learning policies from expert demonstrations, which is often known as vision-based imitation learning. Generating policies based on diffusion and flow matching models has been shown to be effective, particularly in robotic manipulation tasks. However, recursion-based approaches are inference inefficient in working from noise distributions to policy distributions, posing a challenging trade-off between efficiency and quality. This motivates us to propose FlowPolicy, a novel framework for fast policy generation based on consistency flow matching and 3D vision. Our approach refines the flow dynamics by normalizing the self-consistency of the velocity field, enabling the model to derive task execution policies in a single inference step. Specifically, FlowPolicy conditions on the observed 3D point cloud, where consistency flow matching directly defines straight-line flows from different time states to the same action space, while simultaneously constraining their velocity values, that is, we approximate the trajectories from noise to robot actions by normalizing the self-consistency of the velocity field within the action space, thus improving the inference efficiency. We validate the effectiveness of FlowPolicy in Adroit and Metaworld, demonstrating a 7x increase in inference speed while maintaining competitive average success rates compared to state-of-the-art methods. 
+$$z_{t+1} = z_t + \frac{1}{6}(k_1 + 2k_2 + 2k_3 + k_4)$$
 
-## Pipeline
+### 2. Multi-Step Trajectory Consistency Loss
+A **multi-step consistency training loss** ensures the learned velocity field produces globally consistent paths across the full trajectory — not just single time-step predictions. This improves the coherence of generated action sequences.
 
-<div align="center">
-  <img src="pipeline.png" alt="flwopolicy" width="100%">
-</div>
-The above section is a visualization of FlowPolicy. By defining a straight-line flow the data can flow the fastest from the noise distribution to the action distribution (Adroit: Open the door). The following section shows the details of FlowPolicy. Given a certain number of expert presentations, it is first converted into 3D point clouds. The 3D point clouds and the robot state are then fed into two encoders to obtain the compact 3D visual representation and the robot state embedding, respectively. Finally, a straight-line flow is learned by conditional consistency flow matching to generate high-quality robot actions and perform the corresponding tasks (Metaworld: Assembly) at real-time inference speed.
+### 3. Velocity Regularization
+A **velocity regularization term** enforces smoothness and global consistency of the learned velocity field, leading to more stable flow dynamics.
+
+### Enhanced Training Objective
+
+The total training loss combines these components:
+
+$$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{CFM}} + 0.5 \cdot \mathcal{L}_{\text{multi-step}} + 0.5 \cdot \mathcal{L}_{\text{vel-reg}} + 0.1 \cdot \mathcal{L}_{\text{action-MSE}}$$
+
+### Additional Features
+- **Dual-View Point Cloud Encoding**: Processes two camera views (agentview + eye-in-hand) with separate PointNet encoders for richer 3D scene understanding.
+- **Real-Robot Data Pipeline**: Tools to create Zarr datasets from HDF5 robot demonstrations with voxel grid downsampling for point clouds.
+- **Multiple Action Normalizers**: Diffusion Policy-style, hybrid (pose + gripper), and enhanced (working movement + gripper) normalization strategies.
+- **Exact Rectified Flow**: An alternative implementation using exact rectified flow matching.
+
+## 🤖 Supported Environments & Tasks
+
+| Environment | Tasks |
+|---|---|
+| **Adroit** | `hammer`, `door`, `pen` |
+| **Metaworld** | `assembly`, `coffee-pull`, `dial-turn`, `disassemble`, `door-unlock`, `hammer`, `handle-press`, `handle-pull`, `lever-pull`, `pick-place`, `push`, `reach`, `shelf-place`, `soccer`, `stick-pull`, `stick-push`, and more (34 tasks) |
+| **Real Robot** | Single-view and dual-view point cloud configurations via Zarr datasets |
 
 # 💻 Installation
 
-See [install.md](install.md) for installation instructions. 
+See [install.md](install.md) for installation instructions.
 
 # 📚 Data
-You could generate demonstrations by yourself using our provided expert policies.  Generated demonstrations are under `$YOUR_REPO_PATH/FlowPolicy/data/`.
+
+## Simulation Data
+
+You can generate demonstrations for simulation environments using the provided expert policies. Generated demonstrations are stored under `FlowPolicy/data/`.
+
+```bash
+bash scripts/gen_demonstration_adroit.sh hammer
+bash scripts/gen_demonstration_metaworld.sh assembly
+```
+
+## Real-Robot Data Pipeline
+
+For real-robot tasks, you need to prepare your demonstration data as an **HDF5 file** and then convert it to **Zarr format** using the provided conversion scripts.
+
+### Step 1: Prepare Your HDF5 File
+
+Your HDF5 demonstration file must follow this structure:
+
+```
+demo.hdf5
+├── data/
+│   ├── demo_0/
+│   │   ├── actions                    # (T, action_dim) float64 — robot actions per timestep
+│   │   └── obs/
+│   │       ├── agentview_rgb          # (T, 240, 320, 3) uint8 — RGB image from external camera
+│   │       ├── agentview_rgb_depth    # (T, 240, 320) uint16 — depth image from external camera
+│   │       ├── eye_in_hand_rgb        # (T, 240, 320, 3) uint8 — RGB image from wrist camera
+│   │       ├── eye_in_hand_rgb_depth  # (T, 240, 320) uint16 — depth image from wrist camera
+│   │       ├── joint_states           # (T, 7) float64 — 7-DOF arm joint positions
+│   │       ├── ee_states              # (T, 16) float64 — end-effector 4×4 pose (flattened, column-major)
+│   │       └── gripper_states         # (T, 1) or (T, 2) float64 — gripper finger positions
+│   ├── demo_1/
+│   │   ├── actions
+│   │   └── obs/
+│   │       └── ...
+│   └── ...
+```
+
+Where `T` is the number of timesteps in each demonstration (can vary per demo).
+
+**Field details:**
+
+| Field | Shape | Dtype | Description |
+|---|---|---|---|
+| `actions` | `(T, action_dim)` | float64 | Robot actions per timestep (e.g., 7D for position + rotation + gripper) |
+| `agentview_rgb` | `(T, 240, 320, 3)` | uint8 | RGB image from the external (agent-view) camera |
+| `agentview_rgb_depth` | `(T, 240, 320)` | uint16 | Depth image from the external camera (in millimeters, divide by 1000 for meters) |
+| `eye_in_hand_rgb` | `(T, 240, 320, 3)` | uint8 | RGB image from the wrist-mounted (eye-in-hand) camera |
+| `eye_in_hand_rgb_depth` | `(T, 240, 320)` | uint16 | Depth image from the wrist camera (in millimeters) |
+| `joint_states` | `(T, 7)` | float64 | 7-DOF arm joint positions (radians) |
+| `ee_states` | `(T, 16)` | float64 | End-effector 4×4 transformation matrix, flattened column-major |
+| `gripper_states` | `(T, 1)` or `(T, 2)` | float64 | Gripper finger position(s). If 1D, symmetric gripper is assumed |
+
+> **Camera intrinsics** used by the converter (defaults): `fx=320.0, fy=320.0, cx=160.0, cy=120.0`, image size `320×240`. Modify these in `HDF5ToZarrConverter.__init__()` if your cameras differ.
+
+### Step 2: Convert HDF5 → Zarr
+
+Use the conversion script to generate point clouds from RGB-D data and save everything in Zarr format:
+
+```python
+# Edit the paths in EFM/create_zarr_real_robot_faster.py, then run:
+python EFM/create_zarr_real_robot_faster.py
+```
+
+Inside the script, set your paths:
+```python
+hdf5_path = "/path/to/your/demo.hdf5"
+output_path = "/path/to/output/dataset.zarr"
+max_points = 8192  # points per point cloud
+```
+
+The converter will:
+1. Read each demo's RGB-D images from both cameras
+2. Back-project depth to 3D point clouds (`[x, y, z, r, g, b]`)
+3. Downsample via voxel grid sampling to `max_points` per cloud
+4. Extract the 21D robot state vector from `joint_states`, `ee_states`, and `gripper_states`
+5. Save everything into a Zarr file
+
+### Zarr Output Format
+
+The resulting Zarr dataset has the following structure:
+
+```
+dataset.zarr/
+├── data/
+│   ├── agentview_point_cloud       # (N_total, 8192, 6) float32
+│   ├── eye_in_hand_point_cloud     # (N_total, 8192, 6) float32
+│   ├── state                       # (N_total, 21) float32
+│   └── action                      # (N_total, action_dim) float64
+└── meta/
+    ├── episode_ends                # (num_episodes,) int — cumulative timestep index where each episode ends
+    └── attrs:                      # metadata (num_episodes, total_timesteps, shapes, config, etc.)
+```
+
+Where `N_total` is the sum of all timesteps across all demonstrations.
+
+**Point cloud format** — each point has 6 channels: `[x, y, z, r, g, b]`
+- `x, y, z` — 3D coordinates in meters (camera frame)
+- `r, g, b` — RGB color values (0–255)
+- Padded with zeros if fewer than 8192 valid points
+
+**State vector** — 21 dimensions:
+
+| Indices | Dim | Description |
+|---|---|---|
+| 0–6 | 7 | Joint positions (7-DOF arm) |
+| 7–9 | 3 | End-effector XYZ position |
+| 10–18 | 9 | End-effector rotation matrix (flattened) |
+| 19–20 | 2 | Gripper finger positions |
+
+**Episode ends** — cumulative indices marking where each episode ends. For example, if you have 3 demos of lengths 100, 150, 120, then `episode_ends = [100, 250, 370]`.
 
 # 🛠️ Usage
-Scripts for generating demonstrations, training, and evaluation are all provided in the `scripts/` folder. 
 
-The results are logged by `wandb`, so you need to `wandb login` first to see the results and videos.
+Results are logged via `wandb` — run `wandb login` before training to track results and videos.
 
-1. Generate demonstrations by `gen_demonstration_adroit.sh` and `gen_demonstration_metaworld.sh`. See the scripts for details. For example:
-    ```bash
-    bash scripts/gen_demonstration_adroit.sh hammer
-    ```
-    This will generate demonstrations for the `hammer` task in Adroit environment. The data will be saved in `FlowPolicy/data/` folder automatically.
+## Simulation Training
 
-2. Train and evaluate a policy with behavior cloning. For example:
-    ```bash
-    bash scripts/train_policy.sh flowpolicy adroit_hammer 0129 0 0
-    ```
-    This will train a flowpolicy policy on the `hammer` task in Adroit environment using point cloud modality.
+### 1. Generate Demonstrations
 
-3. Evaluate a saved policy or use it for inference. Please set  For example:
-    ```bash
-    bash scripts/eval_policy.sh flowpolicy adroit_hammer 0129 0 0
-    ```
-    This will evaluate the saved flowpolicy policy you just trained. **Note: the evaluation script is only provided for deployment/inference. For benchmarking, please use the results logged in wandb during training.**
+```bash
+bash scripts/gen_demonstration_adroit.sh hammer
+bash scripts/gen_demonstration_metaworld.sh assembly
+```
 
+### 2. Train a Policy
+
+```bash
+bash scripts/train_policy.sh flowpolicy adroit_hammer 0129 0 0
+```
+
+### 3. Evaluate a Policy
+
+```bash
+bash scripts/eval_policy.sh flowpolicy adroit_hammer 0129 0 0
+```
+
+> **Note:** The evaluation script is provided for deployment/inference. For benchmarking, use the results logged in wandb during training.
+
+## Real-Robot Training
+
+Two training scripts are provided depending on your camera setup:
+
+### Single-View (AgentView only)
+
+Uses only the external camera point cloud. Edit the config inside the script to set your Zarr path and hyperparameters, then run:
+
+```bash
+python EFM/FlowPolicy/train_real_robot_flowpolicy.py
+```
+
+Key config fields to modify:
+```python
+'zarr_path': '/path/to/your/dataset.zarr',  # Your Zarr dataset
+'horizon': 4,              # Action prediction horizon
+'n_obs_steps': 2,          # Number of observation steps
+'n_action_steps': 4,       # Number of action steps to execute
+'batch_size': 64,
+'num_epochs': 200,
+```
+
+Observation space: `point_cloud (8192, 6)` + `agent_pos (21,)` → Action space: `(7,)`
+
+### Dual-View (AgentView + Eye-in-Hand)
+
+Uses both the external camera and wrist camera point clouds, processed by **separate PointNet encoders** with concatenated features. Run:
+
+```bash
+python EFM/FlowPolicy/train_real_robot_flowpolicy_dual_view.py
+```
+
+Key config fields to modify:
+```python
+'zarr_path': '/path/to/your/dataset.zarr',  # Must contain both point clouds
+'horizon': 4,
+'n_obs_steps': 2,
+'n_action_steps': 4,
+'batch_size': 32,
+'num_epochs': 400,
+'demo_fraction': 1.0,      # Fraction of demos to use (1.0 = all)
+```
+
+Observation space: `point_cloud (8192, 6)` + `eye_in_hand_point_cloud (8192, 6)` + `agent_pos (21,)` → Action space: `(7,)`
+
+### Training Features
+
+Both real-robot training scripts include:
+- **Enhanced CFM loss** with multi-step trajectory consistency and velocity regularization
+- **RK4 integration** during inference for higher accuracy
+- **Identity action normalizer** (raw actions, no normalization)
+- **EMA model** for stable training
+- **Automatic mixed precision** (AMP) for faster training
+- **Gradient accumulation** (effective batch = `batch_size × gradient_accumulate_every`)
+- **Per-batch and per-epoch loss logging** to CSV files in the checkpoint directory
+- **Automatic checkpoint saving** and resume support
+
+# 📁 Project Structure
+
+```
+EFM/
+├── FlowPolicy/            # Core library & enhanced training
+│   └── flow_policy_3d/
+│       ├── consistencyfm/  # Conditional flow matching implementation
+│       ├── policy/         # FlowPolicy & enhanced variants
+│       ├── model/          # ConditionalUnet1D, PointNet encoders
+│       ├── dataset/        # Adroit, Metaworld, real-robot data loaders
+│       ├── env/            # Environment wrappers
+│       └── config/         # Hydra configs for all tasks
+├── EFM/                    # Enhanced additions
+│   ├── FlowPolicy/        # Enhanced training scripts & action normalizers
+│   ├── create_zarr_*.py    # Real-robot dataset creation
+│   └── visualize_zarr_pointclouds.py
+├── scripts/                # Training, evaluation, demo generation
+├── third_party/            # Dependencies (gym, Metaworld, mujoco-py, pytorch3d, VRL3)
+└── visualizer/             # Point cloud visualization utilities
+```
 
 # 🏷️ License
+
 This repository is released under the MIT license.
 
 # 🙏 Acknowledgement
 
-Our code is built upon [3D Diffusion Policy](https://github.com/YanjieZe/3D-Diffusion-Policy), [Consistency_FM](https://github.com/YangLing0818/consistency_flow_matching),  [VRL3](https://github.com/microsoft/VRL3), and [Metaworld](https://github.com/Farama-Foundation/Metaworld). We would like to thank the authors for their excellent works.
-
-# 🥰 Citation
-If you find this repository helpful, please consider citing:
-
-```
-@article{zhang2024flowpolicy,
-      title={FlowPolicy: Enabling Fast and Robust 3D Flow-based Policy via Consistency Flow Matching for Robot Manipulation}, 
-      author={Qinglun Zhang and Zhen Liu and Haoqiang Fan and Guanghui Liu and Bing Zeng and Shuaicheng Liu},
-      year={2024},
-      eprint={2412.04987},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2412.04987}
-}
-```
-# 🥰 Contact
-If you have any questions, feel free to contact Qinglun Zhang at [zhangqinglun26@std.uestc.edu.cn](mailto:zhangqinglun26@std.uestc.edu.cn).
+Our code builds upon [FlowPolicy](https://github.com/zql-kk/FlowPolicy), [3D Diffusion Policy](https://github.com/YanjieZe/3D-Diffusion-Policy), [Consistency Flow Matching](https://github.com/YangLing0818/consistency_flow_matching), [VRL3](https://github.com/microsoft/VRL3), and [Metaworld](https://github.com/Farama-Foundation/Metaworld). We thank the authors for their excellent works.
 
 
 

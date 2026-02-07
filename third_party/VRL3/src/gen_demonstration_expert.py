@@ -70,7 +70,7 @@ def main():
     
     # load expert ckpt
     print("args.expert_ckpt_path,  ", args.expert_ckpt_path)
-    loaded_dict = torch.load(args.expert_ckpt_path, map_location='cpu')
+    loaded_dict = torch.load(args.expert_ckpt_path, map_location='cpu', weights_only=False)
     expert_agent = loaded_dict['agent']
     expert_agent.to('cuda')
     

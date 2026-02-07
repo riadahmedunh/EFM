@@ -31,30 +31,18 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{CFM}} + 0.5 \cdot \mathcal{L}_
 - **Multiple Action Normalizers**: Diffusion Policy-style, hybrid (pose + gripper), and enhanced (working movement + gripper) normalization strategies.
 - **Exact Rectified Flow**: An alternative implementation using exact rectified flow matching.
 
-## 🤖 Supported Environments & Tasks
+## 🤖 Supported Setup
 
-| Environment | Tasks |
+| Setup | Description |
 |---|---|
-| **Adroit** | `hammer`, `door`, `pen` |
-| **Metaworld** | `assembly`, `coffee-pull`, `dial-turn`, `disassemble`, `door-unlock`, `hammer`, `handle-press`, `handle-pull`, `lever-pull`, `pick-place`, `push`, `reach`, `shelf-place`, `soccer`, `stick-pull`, `stick-push`, and more (34 tasks) |
-| **Real Robot** | Single-view and dual-view point cloud configurations via Zarr datasets |
+| **Single-View** | AgentView point cloud only |
+| **Dual-View** | AgentView + Eye-in-Hand point clouds with separate PointNet encoders |
 
 # 💻 Installation
 
 See [install.md](install.md) for installation instructions.
 
 # 📚 Data
-
-## Simulation Data
-
-You can generate demonstrations for simulation environments using the provided expert policies. Generated demonstrations are stored under `FlowPolicy/data/`.
-
-```bash
-bash scripts/gen_demonstration_adroit.sh hammer
-bash scripts/gen_demonstration_metaworld.sh assembly
-```
-
-## Real-Robot Data Pipeline
 
 For real-robot tasks, you need to prepare your demonstration data as an **HDF5 file** and then convert it to **Zarr format** using the provided conversion scripts.
 
@@ -156,34 +144,9 @@ Where `N_total` is the sum of all timesteps across all demonstrations.
 
 **Episode ends** — cumulative indices marking where each episode ends. For example, if you have 3 demos of lengths 100, 150, 120, then `episode_ends = [100, 250, 370]`.
 
-# 🛠️ Usage
+# 🛠️ Training
 
 Results are logged via `wandb` — run `wandb login` before training to track results and videos.
-
-## Simulation Training
-
-### 1. Generate Demonstrations
-
-```bash
-bash scripts/gen_demonstration_adroit.sh hammer
-bash scripts/gen_demonstration_metaworld.sh assembly
-```
-
-### 2. Train a Policy
-
-```bash
-bash scripts/train_policy.sh flowpolicy adroit_hammer 0129 0 0
-```
-
-### 3. Evaluate a Policy
-
-```bash
-bash scripts/eval_policy.sh flowpolicy adroit_hammer 0129 0 0
-```
-
-> **Note:** The evaluation script is provided for deployment/inference. For benchmarking, use the results logged in wandb during training.
-
-## Real-Robot Training
 
 Two training scripts are provided depending on your camera setup:
 

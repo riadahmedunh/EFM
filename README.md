@@ -40,7 +40,35 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{CFM}} + 0.5 \cdot \mathcal{L}_
 
 # 💻 Installation
 
-See [install.md](install.md) for installation instructions.
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/riadahmedunh/EFM
+cd EFM
+```
+
+### 2. Install PyTorch (CUDA 12.8)
+
+```bash
+pip install --pre torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/nightly/cu128 --upgrade
+```
+
+> Adjust the CUDA version in the URL to match your system (e.g., `cu118`, `cu121`).
+
+### 3. Install dependencies
+
+```bash
+pip install zarr omegaconf termcolor einops hydra-core dill wandb tqdm
+```
+
+### 4. Install FlowPolicy
+
+```bash
+cd FlowPolicy && pip install -e . && cd ..
+```
+
+For the full environment setup (MuJoCo, mujoco-py, pytorch3d, etc.), see [install.md](install.md).
 
 # 📚 Data
 
